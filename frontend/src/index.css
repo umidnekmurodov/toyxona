@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════
+   TAILWIND v4 — DARK MODE: html.dark class orqali
+   dark: prefiks sinflar faqat html.dark bo'lganda ishlaydi
+═══════════════════════════════════════════ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ═══════════════════════════════════════════
+   THEME TOKENS
+═══════════════════════════════════════════ */
+@theme {
+  --color-gold-50:  #FAF6ED;
+  --color-gold-100: #F3EAD3;
+  --color-gold-200: #E6D2A4;
+  --color-gold-300: #D8B772;
+  --color-gold-400: #C99C43;
+  --color-gold-500: #C89B3C;
+  --color-gold-600: #A87E2C;
+  --color-gold-700: #856120;
+  --color-gold-800: #634616;
+  --color-gold-900: #46300E;
+  --color-gold-950: #291B07;
+
+  --color-luxury-50:  #F9FAFB;
+  --color-luxury-100: #F3F4F6;
+  --color-luxury-200: #E5E7EB;
+  --color-luxury-300: #D1D5DB;
+  --color-luxury-400: #9CA3AF;
+  --color-luxury-500: #6B7280;
+  --color-luxury-600: #4B5563;
+  --color-luxury-700: #374151;
+  --color-luxury-800: #1F2937;
+  --color-luxury-850: #161D2C;
+  --color-luxury-900: #111827;
+  --color-luxury-950: #0B0F19;
+}
+
+/* ═══════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════ */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  body {
+    font-family: 'Inter', 'Poppins', 'Manrope', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    min-height: 100vh;
+    background-color: #F9FAFB;
+    color: #111827;
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html.dark {
+    background-color: #0B0F19;
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background-color: #0B0F19 !important;
+    color: #F9FAFB !important;
+  }
+
+  /* Form elementlar */
+  html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  html.dark textarea,
+  html.dark select {
+    background-color: #1a2235 !important;
+    color: #F9FAFB !important;
+    border-color: #374151 !important;
+    color-scheme: dark;
+  }
+
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
+    color: #6B7280 !important;
+    opacity: 1;
+  }
+
+  html.dark option {
+    background-color: #1F2937;
+    color: #F9FAFB;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   GLASS
+═══════════════════════════════════════════ */
+.glass {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(229, 231, 235, 0.7);
+}
+
+html.dark .glass {
+  background: rgba(17, 24, 39, 0.92) !important;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #C89B3C; }
+html.dark ::-webkit-scrollbar-thumb { background: #374151; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #C89B3C; }
+
+/* ═══════════════════════════════════════════
+   GOLD GRADIENT
+═══════════════════════════════════════════ */
+.gold-gradient {
+  background: linear-gradient(135deg, #C89B3C 0%, #E6D2A4 50%, #C89B3C 100%);
+  background-size: 200% auto;
+  transition: background-position 0.5s ease;
+}
+.gold-gradient:hover { background-position: right center; }
+
+/* ═══════════════════════════════════════════
+   SHADOWS
+═══════════════════════════════════════════ */
+.shadow-premium { box-shadow: 0 4px 28px rgba(15, 23, 42, 0.05); }
+html.dark .shadow-premium { box-shadow: 0 2px 24px rgba(0, 0, 0, 0.45); }
+
+.shadow-premium-hover {
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.shadow-premium-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(200, 155, 60, 0.12);
+}
+html.dark .shadow-premium-hover:hover {
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+}
+
+/* ═══════════════════════════════════════════
+   SHIMMER
+═══════════════════════════════════════════ */
+.shimmer {
+  background: linear-gradient(90deg,
+    rgba(229,231,235,0.4) 25%,
+    rgba(209,213,219,0.7) 37%,
+    rgba(229,231,235,0.4) 63%);
+  background-size: 400% 100%;
+  animation: shimmer-kf 1.4s ease infinite;
+}
+html.dark .shimmer {
+  background: linear-gradient(90deg,
+    rgba(31,41,55,0.5)  25%,
+    rgba(55,65,81,0.75) 37%,
+    rgba(31,41,55,0.5)  63%) !important;
+  background-size: 400% 100% !important;
+  animation: shimmer-kf 1.4s ease infinite;
+}
+@keyframes shimmer-kf {
+  0%   { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+
+/* ═══════════════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════════════ */
+@keyframes fadeIn  { from{opacity:0}                            to{opacity:1} }
+@keyframes slideUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+@keyframes scaleIn { from{opacity:0;transform:scale(0.96)}      to{opacity:1;transform:scale(1)} }
+
+.animate-fade     { animation: fadeIn  0.4s ease forwards; }
+.animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards; }
+.animate-scale-in { animation: scaleIn 0.38s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+/* ═══════════════════════════════════════════
+   DARK TOGGLE THUMB
+═══════════════════════════════════════════ */
+.dark-toggle-thumb {
+  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease;
+}
+
+/* ═══════════════════════════════════════════
+   MIN-H-SCREEN
+═══════════════════════════════════════════ */
+.min-h-screen { min-height: 100vh; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — BARCHA KOMPONENTLAR UCHUN UNIVERSAL OVERRIDES
+   html.dark selector Tailwind v4 da dark: klasslarini ishlatadi
+═══════════════════════════════════════════════════════════════ */
+
+/* ── NAVBAR (HEADER) ── */
+html.dark header {
+  background: rgba(11, 15, 25, 0.97) !important;
+  border-color: rgba(55, 65, 81, 0.6) !important;
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ── ROOT va WRAPPER DIV ── */
+html.dark #root {
+  background-color: #0B0F19;
+  min-height: 100vh;
+}
+
+/* ── SAHIFA WRAPPER ── */
+html.dark .min-h-screen {
+  background-color: #0B0F19 !important;
+}
+
+/* ── BG-WHITE ── */
+html.dark .bg-white {
+  background-color: #111827 !important;
+}
+
+/* ── BG-GRAY ── */
+html.dark .bg-gray-50  { background-color: #161D2C !important; }
+html.dark .bg-gray-100 { background-color: #1F2937 !important; }
+html.dark .bg-gray-200 { background-color: #374151 !important; }
+
+/* ── BG-LUXURY (light variants) ── */
+html.dark .bg-luxury-50  { background-color: #0B0F19 !important; }
+html.dark .bg-luxury-100 { background-color: #111827 !important; }
+
+/* ── TEXT ── */
+html.dark .text-gray-900 { color: #F9FAFB !important; }
+html.dark .text-gray-800 { color: #F3F4F6 !important; }
+html.dark .text-gray-700 { color: #E5E7EB !important; }
+html.dark .text-gray-600 { color: #D1D5DB !important; }
+html.dark .text-gray-500 { color: #9CA3AF !important; }
+
+/* ── BORDER ── */
+html.dark .border-gray-100 { border-color: #1F2937 !important; }
+html.dark .border-gray-200 { border-color: #374151 !important; }
+html.dark .border-gray-300 { border-color: #4B5563 !important; }
+
+/* ── TABLES ── */
+html.dark table  { background-color: #111827; }
+html.dark thead  { background-color: #1F2937 !important; }
+html.dark th     { background-color: #1F2937 !important; color: #E5E7EB !important; border-color: #374151 !important; }
+html.dark td     { color: #D1D5DB; border-color: #1F2937 !important; }
+html.dark tbody tr:hover td { background-color: #161D2C !important; }
+
+/* ── MODAL / DIALOG ── */
+html.dark [role="dialog"] {
+  background-color: #111827 !important;
+  color: #F9FAFB !important;
+}
+
+/* ═══════════════════════════════════════════
+   SMOOTH TRANSITIONS — Barcha UI elementlar
+═══════════════════════════════════════════ */
+div, section, main, aside, article, header, footer, nav,
+span, p, h1, h2, h3, h4, h5, h6, a, button,
+table, thead, tbody, tr, th, td, ul, li, label {
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.35s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button, a {
+  transition-property: background-color, color, border-color, box-shadow, opacity, transform;
+  transition-duration: 0.25s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input, textarea, select {
+  transition-property: background-color, color, border-color, box-shadow;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
