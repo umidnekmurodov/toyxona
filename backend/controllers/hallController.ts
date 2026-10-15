@@ -1,9 +1,28 @@
 import { Response } from 'express';
-import { query, getClient } from '../db';
-import { AuthRequest } from '../middleware/auth';
 import jwt from 'jsonwebtoken';
+import { query, getClient } from '../db';
+import { AuthRequest } from '../middleware/authMiddleware';
 
-// Barcha to'yxonalar olish
+const JWT_SECRET = process.env.JWT_SECRET as string;
+
+// Helper: owner_id ni olish yoki yaratish
+async function getOwnerIdByUserId(userId: string): Promise<string> {
+  const existingOwner = await query('SELECT owner_id FROM owners WHERE user_id = $1', [userId]);
+  if (existingOwner.rows.length > 0) {
+    return existingOwner.rows[0].owner_id;
+  }
+  const userRes = await query('SELECT fullname FROM users WHERE user_id = $1', [userId]);
+  const companyName = (userRes.rows[0]?.fullname || 'Mening Biznesim') + ' To\'yxonasi';
+  const newOwner = await query(
+    'INSERT INTO owners (user_id, company_name, verified) VALUES ($1, $2, false) RETURNING owner_id',
+    [userId, companyName]
+  );
+  return newOwner.rows[0].owner_id;
+}
+
+/**
+ * Barcha to'yxonalarni olish
+ */
 export const getAllHalls = async (req: AuthRequest, res: Response) => {
   try {
     const { region, capacity, sortBy } = req.query;
@@ -12,43 +31,30 @@ export const getAllHalls = async (req: AuthRequest, res: Response) => {
     let userId: string | null = null;
     if (token) {
       try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+        const decoded: any = jwt.verify(token, JWT_SECRET);
         userId = decoded.id;
       } catch {
-        // ignore — guest user
+        // Mehmon
       }
     }
 
-    let sql = '';
-    const params: any[] = [];
-
-    if (userId) {
-      sql = `
-        SELECT w.*,
-          COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
-          EXISTS(SELECT 1 FROM favorites WHERE hall_id = w.hall_id AND user_id = $1) AS is_favorited
-        FROM wedding_halls w
-        WHERE w.is_active = true
-      `;
-      params.push(userId);
-    } else {
-      sql = `
-        SELECT w.*,
-          COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
-          false AS is_favorited
-        FROM wedding_halls w
-        WHERE w.is_active = true
-      `;
-    }
+    let sql = `
+      SELECT w.*,
+        COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
+        ${userId ? 'EXISTS(SELECT 1 FROM favorites WHERE hall_id = w.hall_id AND user_id = $1)' : 'false'} AS is_favorited
+      FROM wedding_halls w
+      WHERE w.is_active = true
+    `;
+    const params: any[] = userId ? [userId] : [];
 
     if (region) {
-      sql += ' AND w.region ILIKE $' + (params.length + 1);
       params.push(`%${region}%`);
+      sql += ` AND w.region ILIKE $${params.length}`;
     }
 
     if (capacity) {
-      sql += ' AND w.capacity >= $' + (params.length + 1);
       params.push(parseInt(capacity as string, 10));
+      sql += ` AND w.capacity >= $${params.length}`;
     }
 
     if (sortBy === 'price') {
@@ -62,11 +68,13 @@ export const getAllHalls = async (req: AuthRequest, res: Response) => {
     const result = await query(sql, params);
     res.json(result.rows);
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// To'yxona ID bo'yicha olish
+/**
+ * To'yxonani ID bo'yicha olish
+ */
 export const getHallById = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId } = req.params;
@@ -75,48 +83,39 @@ export const getHallById = async (req: AuthRequest, res: Response) => {
     let userId: string | null = null;
     if (token) {
       try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+        const decoded: any = jwt.verify(token, JWT_SECRET);
         userId = decoded.id;
       } catch {
-        // ignore
+        // Mehmon
       }
     }
 
-    let result;
-    if (userId) {
-      result = await query(
-        `SELECT w.*,
-           COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
-           EXISTS(SELECT 1 FROM favorites WHERE hall_id = w.hall_id AND user_id = $2) AS is_favorited
-         FROM wedding_halls w WHERE w.hall_id = $1`,
-        [hallId, userId]
-      );
-    } else {
-      result = await query(
-        `SELECT w.*,
-           COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
-           false AS is_favorited
-         FROM wedding_halls w WHERE w.hall_id = $1`,
-        [hallId]
-      );
-    }
+    const sql = `
+      SELECT w.*,
+        COALESCE((SELECT COUNT(*) FROM favorites WHERE hall_id = w.hall_id), 0)::integer AS favorites_count,
+        ${userId ? 'EXISTS(SELECT 1 FROM favorites WHERE hall_id = w.hall_id AND user_id = $2)' : 'false'} AS is_favorited
+      FROM wedding_halls w WHERE w.hall_id = $1
+    `;
+    const params = userId ? [hallId, userId] : [hallId];
 
+    const result = await query(sql, params);
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'To\'yxona topilmadi' });
+      return res.status(404).json({ message: "To'yxona topilmadi!" });
     }
 
     const imagesResult = await query('SELECT image_url FROM hall_images WHERE hall_id = $1 ORDER BY created_at ASC', [hallId]);
-
     const hall = result.rows[0];
     hall.images = imagesResult.rows.map((img) => img.image_url);
 
     res.json(hall);
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// To'yxona yaratish (owner — request yuboradi, admin — to'g'ridan-to'g'ri)
+/**
+ * To'yxona yaratish
+ */
 export const createHall = async (req: AuthRequest, res: Response) => {
   try {
     const {
@@ -126,11 +125,10 @@ export const createHall = async (req: AuthRequest, res: Response) => {
     } = req.body;
 
     if (!hallName || !region || !district || !address || !capacity) {
-      return res.status(400).json({ message: 'Majburiy maydonlarni to\'ldiring: nom, hudud, tuman, manzil, sig\'im' });
+      return res.status(400).json({ message: "Majburiy maydonlarni to'ldiring: nom, viloyat, tuman, manzil, sig'im" });
     }
 
-    if (req.user.role === 'admin') {
-      // Admin — to'g'ridan-to'g'ri yaratadi
+    if (req.user?.role === 'admin') {
       const client = await getClient();
       try {
         await client.query('BEGIN');
@@ -143,8 +141,7 @@ export const createHall = async (req: AuthRequest, res: Response) => {
           [
             req.body.ownerId || null, hallName, description, region, district,
             address, latitude || 0, longitude || 0, capacity, pricePerSeat,
-            phone, mainImage,
-            amenities?.wifi || false, amenities?.parking || false,
+            phone, mainImage, amenities?.wifi || false, amenities?.parking || false,
             amenities?.airConditioner || false, amenities?.stage || false,
             amenities?.musicSystem || false,
           ]
@@ -152,40 +149,24 @@ export const createHall = async (req: AuthRequest, res: Response) => {
 
         const hall = result.rows[0];
 
-        if (images && Array.isArray(images)) {
+        if (Array.isArray(images)) {
           for (const imageUrl of images) {
-            if (imageUrl && imageUrl.trim()) {
-              await client.query(
-                'INSERT INTO hall_images (hall_id, image_url) VALUES ($1, $2)',
-                [hall.hall_id, imageUrl.trim()]
-              );
+            if (imageUrl?.trim()) {
+              await client.query('INSERT INTO hall_images (hall_id, image_url) VALUES ($1, $2)', [hall.hall_id, imageUrl.trim()]);
             }
           }
         }
 
         await client.query('COMMIT');
-        return res.status(201).json({ message: 'To\'yxona yaratildi', hall });
+        return res.status(201).json({ message: "To'yxona muvaffaqiyatli yaratildi", hall });
       } catch (err: any) {
         await client.query('ROLLBACK');
         return res.status(500).json({ message: err.message });
       } finally {
         client.release();
       }
-
     } else {
-      // ✅ Owner — request yuboradi (approval workflow)
-      let ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-      if (ownerResult.rows.length === 0) {
-        // Auto-create missing owner record
-        const userRes = await query('SELECT fullname FROM users WHERE user_id = $1', [req.user.id]);
-        const companyName = (userRes.rows[0]?.fullname || 'Owner') + ' Kompaniyasi';
-        ownerResult = await query(
-          'INSERT INTO owners (user_id, company_name, verified) VALUES ($1, $2, false) RETURNING owner_id',
-          [req.user.id, companyName]
-        );
-      }
-      const ownerId = ownerResult.rows[0].owner_id;
-
+      const ownerId = await getOwnerIdByUserId(req.user!.id);
       const requestData = {
         hallName, description, region, district, address,
         latitude, longitude, capacity, pricePerSeat, phone,
@@ -193,42 +174,38 @@ export const createHall = async (req: AuthRequest, res: Response) => {
       };
 
       await query(
-        `INSERT INTO approval_requests (owner_id, request_type, status, data) VALUES ($1, $2, $3, $4)`,
+        'INSERT INTO approval_requests (owner_id, request_type, status, data) VALUES ($1, $2, $3, $4)',
         [ownerId, 'create', 'pending', JSON.stringify(requestData)]
       );
 
       return res.status(202).json({
-        message: 'To\'yxona qo\'shish so\'rovi adminga yuborildi. Tasdiqlangach e\'lon qilinadi.',
+        message: "To'yxona qo'shish so'rovi adminga yuborildi. Tasdiqlangach e'londa ko'rinadi.",
       });
     }
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// To'yxona yangilash
+/**
+ * To'yxonani tahrirlash
+ */
 export const updateHall = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId } = req.params;
     const { hallName, description, capacity, pricePerSeat, phone, amenities, mainImage, images } = req.body;
 
-    if (req.user.role === 'admin') {
+    if (req.user?.role === 'admin') {
       const client = await getClient();
       try {
         await client.query('BEGIN');
         const result = await client.query(
           `UPDATE wedding_halls SET
-             hall_name = COALESCE($1, hall_name),
-             description = COALESCE($2, description),
-             capacity = COALESCE($3, capacity),
-             price_per_seat = COALESCE($4, price_per_seat),
-             phone = COALESCE($5, phone),
-             wifi = COALESCE($6, wifi),
-             parking = COALESCE($7, parking),
-             air_conditioner = COALESCE($8, air_conditioner),
-             stage = COALESCE($9, stage),
-             music_system = COALESCE($10, music_system),
-             main_image = COALESCE($11, main_image),
+             hall_name = COALESCE($1, hall_name), description = COALESCE($2, description),
+             capacity = COALESCE($3, capacity), price_per_seat = COALESCE($4, price_per_seat),
+             phone = COALESCE($5, phone), wifi = COALESCE($6, wifi), parking = COALESCE($7, parking),
+             air_conditioner = COALESCE($8, air_conditioner), stage = COALESCE($9, stage),
+             music_system = COALESCE($10, music_system), main_image = COALESCE($11, main_image),
              updated_at = CURRENT_TIMESTAMP
            WHERE hall_id = $12 RETURNING *`,
           [
@@ -240,137 +217,117 @@ export const updateHall = async (req: AuthRequest, res: Response) => {
 
         if (result.rows.length === 0) {
           await client.query('ROLLBACK');
-          return res.status(404).json({ message: 'To\'yxona topilmadi' });
+          return res.status(404).json({ message: "To'yxona topilmadi!" });
         }
 
-        if (images && Array.isArray(images)) {
+        if (Array.isArray(images)) {
           await client.query('DELETE FROM hall_images WHERE hall_id = $1', [hallId]);
           for (const imageUrl of images) {
-            if (imageUrl && imageUrl.trim()) {
-              await client.query(
-                'INSERT INTO hall_images (hall_id, image_url) VALUES ($1, $2)',
-                [hallId, imageUrl.trim()]
-              );
+            if (imageUrl?.trim()) {
+              await client.query('INSERT INTO hall_images (hall_id, image_url) VALUES ($1, $2)', [hallId, imageUrl.trim()]);
             }
           }
         }
 
         await client.query('COMMIT');
-        return res.json({ message: 'To\'yxona yangilandi', hall: result.rows[0] });
+        return res.json({ message: "To'yxona ma'lumotlari yangilandi", hall: result.rows[0] });
       } catch (err: any) {
         await client.query('ROLLBACK');
         return res.status(500).json({ message: err.message });
       } finally {
         client.release();
       }
-
     } else {
-      // Owner — update request yuboradi
       const hallResult = await query('SELECT owner_id FROM wedding_halls WHERE hall_id = $1', [hallId]);
       if (hallResult.rows.length === 0) {
-        return res.status(404).json({ message: 'To\'yxona topilmadi' });
+        return res.status(404).json({ message: "To'yxona topilmadi!" });
       }
 
-      let ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-      if (ownerResult.rows.length === 0) {
-        const userRes = await query('SELECT fullname FROM users WHERE user_id = $1', [req.user.id]);
-        const companyName = (userRes.rows[0]?.fullname || 'Owner') + ' Kompaniyasi';
-        ownerResult = await query(
-          'INSERT INTO owners (user_id, company_name, verified) VALUES ($1, $2, false) RETURNING owner_id',
-          [req.user.id, companyName]
-        );
+      const ownerId = await getOwnerIdByUserId(req.user!.id);
+      if (hallResult.rows[0].owner_id !== ownerId) {
+        return res.status(403).json({ message: "Bu to'yxona sizga tegishli emas!" });
       }
-      if (hallResult.rows[0].owner_id !== ownerResult.rows[0].owner_id) {
-        return res.status(403).json({ message: 'Bu to\'yxona sizga tegishli emas' });
-      }
-      const ownerId = ownerResult.rows[0].owner_id;
+
       const requestData = { hallName, description, capacity, pricePerSeat, phone, amenities, mainImage, images };
-
       await query(
-        `INSERT INTO approval_requests (hall_id, owner_id, request_type, status, data) VALUES ($1, $2, $3, $4, $5)`,
+        'INSERT INTO approval_requests (hall_id, owner_id, request_type, status, data) VALUES ($1, $2, $3, $4, $5)',
         [hallId, ownerId, 'update', 'pending', JSON.stringify(requestData)]
       );
 
       return res.status(202).json({
-        message: 'Tahrirlash so\'rovi adminga yuborildi. Tasdiqlangach o\'zgaradi.',
+        message: "Tahrirlash so'rovi adminga yuborildi. Tasdiqlangach o'zgaradi.",
       });
     }
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// ✅ FIX [BUG-002, BUG-013]: To'yxona o'chirish
-// Owner to'g'ridan-to'g'ri o'chira OLMAYDI — faqat admin o'chira oladi
+/**
+ * To'yxonani o'chirish
+ */
 export const deleteHall = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId } = req.params;
 
-    if (req.user.role === 'owner') {
-      const ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-      if (ownerResult.rows.length === 0) {
-        return res.status(403).json({ message: 'Owner topilmadi' });
-      }
-      const ownerId = ownerResult.rows[0].owner_id;
-
+    if (req.user?.role === 'owner') {
+      const ownerId = await getOwnerIdByUserId(req.user.id);
       const hallResult = await query('SELECT owner_id FROM wedding_halls WHERE hall_id = $1', [hallId]);
       if (hallResult.rows.length === 0) {
-        return res.status(404).json({ message: 'To\'yxona topilmadi' });
+        return res.status(404).json({ message: "To'yxona topilmadi!" });
       }
       if (hallResult.rows[0].owner_id !== ownerId) {
-        return res.status(403).json({ message: 'Bu to\'yxona sizga tegishli emas' });
+        return res.status(403).json({ message: "Bu to'yxona sizga tegishli emas!" });
       }
     }
 
     const hallResult = await query('SELECT hall_id FROM wedding_halls WHERE hall_id = $1', [hallId]);
     if (hallResult.rows.length === 0) {
-      return res.status(404).json({ message: 'To\'yxona topilmadi' });
+      return res.status(404).json({ message: "To'yxona topilmadi!" });
     }
 
     await query('DELETE FROM wedding_halls WHERE hall_id = $1', [hallId]);
-    res.json({ message: 'To\'yxona o\'chirildi' });
+    res.json({ message: "To'yxona muvaffaqiyatli o'chirildi" });
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// To'yxona rasmlarini qo'shish
+/**
+ * To'yxonaga yangi rasm qo'shish
+ */
 export const addHallImages = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId } = req.params;
     const { images } = req.body;
 
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return res.status(400).json({ message: 'Rasmlar ro\'yxati bo\'sh' });
+    if (!Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ message: "Rasmlar ro'yxati bo'sh bo'lmasligi kerak" });
     }
 
-    // ✅ Security [BOLA Fix]: check owner permission
-    if (req.user.role === 'owner') {
-      const ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-      if (ownerResult.rows.length === 0) {
-        return res.status(403).json({ message: 'Faqat to\'yxona egalari rasm qo\'sha oladi' });
-      }
-      const ownerId = ownerResult.rows[0].owner_id;
-
+    if (req.user?.role === 'owner') {
+      const ownerId = await getOwnerIdByUserId(req.user.id);
       const hallResult = await query('SELECT owner_id FROM wedding_halls WHERE hall_id = $1', [hallId]);
       if (hallResult.rows.length === 0 || hallResult.rows[0].owner_id !== ownerId) {
-        return res.status(403).json({ message: 'Bu to\'yxona sizga tegishli emas yoki ruxsat yo\'q' });
+        return res.status(403).json({ message: "Bu to'yxona sizga tegishli emas!" });
       }
     }
 
     for (const imageUrl of images) {
-      if (imageUrl && imageUrl.trim()) {
+      if (imageUrl?.trim()) {
         await query('INSERT INTO hall_images (hall_id, image_url) VALUES ($1, $2)', [hallId, imageUrl.trim()]);
       }
     }
 
-    res.status(201).json({ message: 'Rasmlar qo\'shildi' });
+    res.status(201).json({ message: "Rasmlar muvaffaqiyatli qo'shildi" });
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// Hall availability
+/**
+ * Bo'sh sanalarni tekshirish
+ */
 export const getHallAvailability = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId } = req.params;
@@ -382,7 +339,7 @@ export const getHallAvailability = async (req: AuthRequest, res: Response) => {
       : new Date(new Date().setDate(new Date().getDate() + 30));
 
     if (startDate > endDate) {
-      return res.status(400).json({ message: 'Boshlanish sanasi tugash sanasidan oldin bo\'lishi kerak' });
+      return res.status(400).json({ message: "Boshlanish sanasi tugash sanasidan oldin bo'lishi kerak!" });
     }
 
     const bookedRes = await query(
@@ -392,11 +349,9 @@ export const getHallAvailability = async (req: AuthRequest, res: Response) => {
       [hallId, startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
     );
 
-    const bookedSet = new Set(
-      bookedRes.rows.map((r) => r.booking_date)
-    );
-
+    const bookedSet = new Set(bookedRes.rows.map((r) => r.booking_date));
     const dates: string[] = [];
+
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const day = new Date(d).toISOString().split('T')[0];
       if (!bookedSet.has(day)) dates.push(day);
@@ -404,48 +359,32 @@ export const getHallAvailability = async (req: AuthRequest, res: Response) => {
 
     res.json({ available: dates });
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// Owner o'zining to'yxonalarini olish
+/**
+ * Ownerning o'z zallari
+ */
 export const getMyHalls = async (req: AuthRequest, res: Response) => {
   try {
-    // Auto-create owner record if missing (handles manually-set role='owner' users)
-    let ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-    if (ownerResult.rows.length === 0) {
-      const userRes = await query('SELECT fullname FROM users WHERE user_id = $1', [req.user.id]);
-      const companyName = (userRes.rows[0]?.fullname || 'Owner') + ' Kompaniyasi';
-      ownerResult = await query(
-        'INSERT INTO owners (user_id, company_name, verified) VALUES ($1, $2, false) RETURNING owner_id',
-        [req.user.id, companyName]
-      );
-    }
-    const ownerId = ownerResult.rows[0].owner_id;
+    const ownerId = await getOwnerIdByUserId(req.user!.id);
     const result = await query(
       'SELECT * FROM wedding_halls WHERE owner_id = $1 ORDER BY created_at DESC',
       [ownerId]
     );
     res.json(result.rows);
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };
 
-// Owner o'zining so'rovlarini olish
+/**
+ * Owner arizalari
+ */
 export const getMyRequests = async (req: AuthRequest, res: Response) => {
   try {
-    // Auto-create owner record if missing
-    let ownerResult = await query('SELECT owner_id FROM owners WHERE user_id = $1', [req.user.id]);
-    if (ownerResult.rows.length === 0) {
-      const userRes = await query('SELECT fullname FROM users WHERE user_id = $1', [req.user.id]);
-      const companyName = (userRes.rows[0]?.fullname || 'Owner') + ' Kompaniyasi';
-      ownerResult = await query(
-        'INSERT INTO owners (user_id, company_name, verified) VALUES ($1, $2, false) RETURNING owner_id',
-        [req.user.id, companyName]
-      );
-    }
-    const ownerId = ownerResult.rows[0].owner_id;
+    const ownerId = await getOwnerIdByUserId(req.user!.id);
     const result = await query(
       `SELECT hr.*, w.hall_name as existing_hall_name
        FROM approval_requests hr
@@ -456,6 +395,6 @@ export const getMyRequests = async (req: AuthRequest, res: Response) => {
     );
     res.json(result.rows);
   } catch (error: any) {
-    res.status(500).json({ message: 'Server xatosi' });
+    res.status(500).json({ message: 'Serverda xatolik yuz berdi' });
   }
 };

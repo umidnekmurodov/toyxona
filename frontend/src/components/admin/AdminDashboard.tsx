@@ -214,6 +214,15 @@ export default function AdminDashboard() {
       } else if (activeTab === 'requests') {
         const res = await api.get(`/admin/hall-requests`);
         setRequests(res.data);
+      } else if (activeTab === 'singers') {
+        const res = await api.get('/singers');
+        setSingers(res.data);
+      } else if (activeTab === 'cars') {
+        const res = await api.get('/cars');
+        setCars(res.data);
+      } else if (activeTab === 'foods') {
+        const res = await api.get('/foods');
+        setFoods(res.data);
       }
     } catch (error: any) {
       console.error('Data load error:', error);
@@ -229,7 +238,6 @@ export default function AdminDashboard() {
       return;
     }
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleBlockUser = async (userId: string, isActive: boolean) => {
@@ -302,7 +310,9 @@ export default function AdminDashboard() {
       if (newHallId && hallImages.length > 0) {
         try {
           await api.post(`/halls/${newHallId}/images`, { images: hallImages });
-        } catch {}
+        } catch (error) {
+          console.warn('Hall image upload failed:', error);
+        }
       }
 
       addToast("✅ To'yxona muvaffaqiyatli yaratildi!", 'success');
@@ -401,6 +411,144 @@ export default function AdminDashboard() {
     } catch (error: any) {
       addToast('Xato: ' + (error.response?.data?.message || error.message), 'error');
     }
+  };
+
+  const handleSaveSinger = async () => {
+    if (!singerForm.fullname.trim() || !singerForm.price || Number(singerForm.price) <= 0) {
+      addToast('Xonanda ismi va 0 dan katta narxni kiriting', 'warning');
+      return;
+    }
+
+    const payload = { ...singerForm, fullname: singerForm.fullname.trim(), price: Number(singerForm.price) };
+    try {
+      if (showEditSinger) {
+        await api.patch(`/singers/${showEditSinger.singer_id}`, payload);
+        addToast('✅ Xonanda maʼlumotlari yangilandi', 'success');
+        setShowEditSinger(null);
+      } else {
+        await api.post('/singers', payload);
+        addToast('✅ Xonanda qoʻshildi', 'success');
+        setShowAddSinger(false);
+      }
+      setSingerForm({ fullname: '', price: '', description: '', image_url: '' });
+      loadData();
+    } catch (error: any) {
+      addToast('Xato: ' + (error.response?.data?.message || error.message), 'error');
+    }
+  };
+
+  const handleSaveCar = async () => {
+    if (!carForm.name.trim() || !carForm.price || Number(carForm.price) <= 0) {
+      addToast('Mashina nomi va 0 dan katta narxni kiriting', 'warning');
+      return;
+    }
+
+    const payload = {
+      ...carForm,
+      name: carForm.name.trim(),
+      price: Number(carForm.price),
+      model_year: carForm.model_year ? Number(carForm.model_year) : null,
+    };
+    try {
+      if (showEditCar) {
+        await api.patch(`/cars/${showEditCar.car_id}`, payload);
+        addToast('✅ Mashina maʼlumotlari yangilandi', 'success');
+        setShowEditCar(null);
+      } else {
+        await api.post('/cars', payload);
+        addToast('✅ Mashina qoʻshildi', 'success');
+        setShowAddCar(false);
+      }
+      setCarForm({ name: '', price: '', brand: '', model_year: '', image_url: '' });
+      loadData();
+    } catch (error: any) {
+      addToast('Xato: ' + (error.response?.data?.message || error.message), 'error');
+    }
+  };
+
+  const handleSaveFood = async () => {
+    if (!foodForm.name.trim() || !foodForm.price_per_guest || Number(foodForm.price_per_guest) <= 0) {
+      addToast('Taom nomi va 0 dan katta narxni kiriting', 'warning');
+      return;
+    }
+
+    const payload = {
+      ...foodForm,
+      name: foodForm.name.trim(),
+      price_per_guest: Number(foodForm.price_per_guest),
+    };
+    try {
+      if (showEditFood) {
+        await api.patch(`/foods/${showEditFood.food_id}`, payload);
+        addToast('✅ Taom maʼlumotlari yangilandi', 'success');
+        setShowEditFood(null);
+      } else {
+        await api.post('/foods', payload);
+        addToast('✅ Taom qoʻshildi', 'success');
+        setShowAddFood(false);
+      }
+      setFoodForm({ name: '', price_per_guest: '', description: '', image_url: '' });
+      loadData();
+    } catch (error: any) {
+      addToast('Xato: ' + (error.response?.data?.message || error.message), 'error');
+    }
+  };
+
+  const handleDeleteExtra = (item: { id: string; name: string; kind: 'singer' | 'car' | 'food' }) => {
+    setConfirmModal({
+      message: `“${item.name}” maʼlumotini oʻchirmoqchimisiz?`,
+      onConfirm: async () => {
+        try {
+          await api.delete(`/${item.kind === 'food' ? 'foods' : `${item.kind}s`}/${item.id}`);
+          addToast('✅ Maʼlumot oʻchirildi', 'success');
+          loadData();
+        } catch (error: any) {
+          addToast('Xato: ' + (error.response?.data?.message || error.message), 'error');
+        }
+      },
+    });
+  };
+
+  const extraItems = activeTab === 'singers'
+    ? singers.map((item) => ({ id: item.singer_id, name: item.fullname, description: item.description, image: item.image_url, price: item.price, details: '', kind: 'singer' as const, raw: item }))
+    : activeTab === 'cars'
+      ? cars.map((item) => ({ id: item.car_id, name: item.name, description: null, image: item.image_url, price: item.price, details: [item.brand, item.model_year].filter(Boolean).join(' · '), kind: 'car' as const, raw: item }))
+      : foods.map((item) => ({ id: item.food_id, name: item.name, description: item.description, image: item.image_url, price: item.price_per_guest, details: '', kind: 'food' as const, raw: item }));
+
+  const openEditExtra = (item: (typeof extraItems)[number]) => {
+    if (item.kind === 'singer') {
+      setSingerForm({ fullname: item.raw.fullname, price: String(item.raw.price), description: item.raw.description || '', image_url: item.raw.image_url || '' });
+      setShowEditSinger(item.raw);
+    } else if (item.kind === 'car') {
+      setCarForm({ name: item.raw.name, price: String(item.raw.price), brand: item.raw.brand || '', model_year: item.raw.model_year ? String(item.raw.model_year) : '', image_url: item.raw.image_url || '' });
+      setShowEditCar(item.raw);
+    } else {
+      setFoodForm({ name: item.raw.name, price_per_guest: String(item.raw.price_per_guest), description: item.raw.description || '', image_url: item.raw.image_url || '' });
+      setShowEditFood(item.raw);
+    }
+  };
+
+  const activeExtraModal = showAddSinger || showEditSinger
+    ? 'singer'
+    : showAddCar || showEditCar
+      ? 'car'
+      : showAddFood || showEditFood
+        ? 'food'
+        : null;
+
+  const closeExtraModal = () => {
+    setShowAddSinger(false);
+    setShowEditSinger(null);
+    setShowAddCar(false);
+    setShowEditCar(null);
+    setShowAddFood(false);
+    setShowEditFood(null);
+  };
+
+  const saveExtraModal = () => {
+    if (activeExtraModal === 'singer') handleSaveSinger();
+    else if (activeExtraModal === 'car') handleSaveCar();
+    else if (activeExtraModal === 'food') handleSaveFood();
   };
 
   // Filter calculations
@@ -981,7 +1129,7 @@ export default function AdminDashboard() {
                             {requestData.amenities && (
                               <div className="flex flex-wrap gap-1.5 mt-3">
                                 {Object.entries(requestData.amenities)
-                                  .filter(([_, val]) => val)
+                                  .filter(([, val]) => val)
                                   .map(([key]) => (
                                     <span key={key} className="text-[10px] bg-luxury-100 dark:bg-luxury-800 text-luxury-600 dark:text-luxury-300 px-2 py-0.5 rounded border border-luxury-200/50 dark:border-luxury-800/50 font-semibold uppercase">
                                       {key === 'wifi' ? '📡 WiFi' :
@@ -1019,9 +1167,125 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {(activeTab === 'singers' || activeTab === 'cars' || activeTab === 'foods') && !loading && (
+              <div className="bg-white dark:bg-luxury-900 border border-luxury-200/50 dark:border-luxury-800/50 rounded-3xl p-6 sm:p-8 shadow-premium animate-fade">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-luxury-100 dark:border-luxury-800/80">
+                  <div>
+                    <h3 className="text-lg font-bold font-poppins text-luxury-900 dark:text-white">
+                      {activeTab === 'singers' ? 'Xonandalar' : activeTab === 'cars' ? 'Mashinalar' : 'Taomlar'} ({extraItems.length})
+                    </h3>
+                    <p className="text-xs text-luxury-500 mt-1">Qoʻshish, tahrirlash va oʻchirish</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (activeTab === 'singers') {
+                        setSingerForm({ fullname: '', price: '', description: '', image_url: '' });
+                        setShowAddSinger(true);
+                      } else if (activeTab === 'cars') {
+                        setCarForm({ name: '', price: '', brand: '', model_year: '', image_url: '' });
+                        setShowAddCar(true);
+                      } else {
+                        setFoodForm({ name: '', price_per_guest: '', description: '', image_url: '' });
+                        setShowAddFood(true);
+                      }
+                    }}
+                    className="gold-gradient text-luxury-950 font-semibold px-4 py-2 rounded-xl cursor-pointer hover:shadow-lg hover:shadow-gold-500/20 active:scale-95 transition-all text-xs"
+                  >
+                    ➕ {activeTab === 'singers' ? 'Xonanda qoʻshish' : activeTab === 'cars' ? 'Mashina qoʻshish' : 'Taom qoʻshish'}
+                  </button>
+                </div>
+
+                {extraItems.length === 0 ? (
+                  <p className="text-center py-12 text-luxury-500 text-sm">Hozircha maʼlumot yoʻq</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {extraItems.map((item) => (
+                      <article key={item.id} className="border border-luxury-200/60 dark:border-luxury-800/60 rounded-2xl p-4 flex gap-4">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="w-20 h-20 rounded-xl object-cover bg-luxury-100 dark:bg-luxury-800" />
+                        ) : (
+                          <div className="w-20 h-20 rounded-xl bg-luxury-100 dark:bg-luxury-800 flex items-center justify-center text-2xl">
+                            {item.kind === 'singer' ? '🎤' : item.kind === 'car' ? '🚗' : '🍽️'}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex justify-between gap-2">
+                            <h4 className="font-bold text-luxury-900 dark:text-white truncate">{item.name}</h4>
+                            <span className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600">Faol</span>
+                          </div>
+                          {item.details && <p className="text-xs text-luxury-500 mt-1">{item.details}</p>}
+                          {item.description && <p className="text-xs text-luxury-500 mt-1 line-clamp-2">{item.description}</p>}
+                          <p className="text-sm font-bold text-gold-600 dark:text-gold-400 mt-2">
+                            ${Number(item.price).toLocaleString()} {item.kind === 'food' ? '/ kishi' : ''}
+                          </p>
+                          <div className="flex gap-2 mt-3">
+                            <button onClick={() => openEditExtra(item)} className="flex-1 bg-amber-500/10 hover:bg-amber-500 hover:text-white text-amber-600 border border-amber-500/20 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer">✏️ Tahrirlash</button>
+                            <button onClick={() => handleDeleteExtra(item)} className="px-3 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 border border-red-500/20 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer">🗑️</button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         </div>
       </main>
+
+      {activeExtraModal && (
+        <div className="fixed inset-0 bg-luxury-950/70 backdrop-blur-md flex items-center justify-center p-4 z-[1500] animate-fade" onClick={closeExtraModal}>
+          <div className="bg-white dark:bg-luxury-900 border border-luxury-200 dark:border-luxury-800 rounded-3xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl p-6 sm:p-8 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-xl font-bold font-poppins text-luxury-900 dark:text-white">
+                  {activeExtraModal === 'singer' ? (showEditSinger ? 'Xonandani tahrirlash' : 'Xonanda qoʻshish') : activeExtraModal === 'car' ? (showEditCar ? 'Mashinani tahrirlash' : 'Mashina qoʻshish') : (showEditFood ? 'Taomni tahrirlash' : 'Taom qoʻshish')}
+                </h2>
+                <p className="text-xs text-luxury-500 mt-1">Maʼlumotlarni kiriting va saqlang</p>
+              </div>
+              <button onClick={closeExtraModal} className="bg-luxury-100 dark:bg-luxury-800 text-luxury-600 dark:text-luxury-300 hover:bg-gold-500 hover:text-luxury-950 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all cursor-pointer">✕</button>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              {activeExtraModal === 'singer' && (
+                <>
+                  <input type="text" placeholder="Xonanda ismi" value={singerForm.fullname} onChange={(e) => setSingerForm({ ...singerForm, fullname: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <input type="number" min="0" step="any" placeholder="Narxi ($)" value={singerForm.price} onChange={(e) => setSingerForm({ ...singerForm, price: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <textarea placeholder="Tavsifi (ixtiyoriy)" value={singerForm.description} onChange={(e) => setSingerForm({ ...singerForm, description: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500 min-h-[80px]" />
+                  <input type="url" placeholder="Rasm URL (ixtiyoriy)" value={singerForm.image_url} onChange={(e) => setSingerForm({ ...singerForm, image_url: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                </>
+              )}
+
+              {activeExtraModal === 'car' && (
+                <>
+                  <input type="text" placeholder="Mashina nomi" value={carForm.name} onChange={(e) => setCarForm({ ...carForm, name: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <input type="number" min="0" step="any" placeholder="Narxi ($)" value={carForm.price} onChange={(e) => setCarForm({ ...carForm, price: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="text" placeholder="Markasi" value={carForm.brand} onChange={(e) => setCarForm({ ...carForm, brand: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                    <input type="number" min="1980" placeholder="Model yili" value={carForm.model_year} onChange={(e) => setCarForm({ ...carForm, model_year: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  </div>
+                  <input type="url" placeholder="Rasm URL (ixtiyoriy)" value={carForm.image_url} onChange={(e) => setCarForm({ ...carForm, image_url: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                </>
+              )}
+
+              {activeExtraModal === 'food' && (
+                <>
+                  <input type="text" placeholder="Taom nomi" value={foodForm.name} onChange={(e) => setFoodForm({ ...foodForm, name: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <input type="number" min="0" step="any" placeholder="Narxi ($ / kishi)" value={foodForm.price_per_guest} onChange={(e) => setFoodForm({ ...foodForm, price_per_guest: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                  <textarea placeholder="Tavsifi (ixtiyoriy)" value={foodForm.description} onChange={(e) => setFoodForm({ ...foodForm, description: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500 min-h-[80px]" />
+                  <input type="url" placeholder="Rasm URL (ixtiyoriy)" value={foodForm.image_url} onChange={(e) => setFoodForm({ ...foodForm, image_url: e.target.value })} className="w-full bg-luxury-100/50 dark:bg-luxury-950/50 text-luxury-900 dark:text-white border border-luxury-200 dark:border-luxury-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-gold-500" />
+                </>
+              )}
+
+              <div className="flex gap-3 mt-2">
+                <button onClick={saveExtraModal} className="flex-1 gold-gradient text-luxury-950 font-semibold py-3 rounded-xl cursor-pointer hover:shadow-lg transition-all text-sm">Saqlash</button>
+                <button onClick={closeExtraModal} className="flex-1 border border-luxury-200 dark:border-luxury-800 text-luxury-600 dark:text-luxury-400 hover:bg-luxury-100 dark:hover:bg-luxury-800 font-semibold py-3 rounded-xl cursor-pointer transition-colors text-sm">Bekor qilish</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Hall Modal Layout */}
       {showAddHall && (

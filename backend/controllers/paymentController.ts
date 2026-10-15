@@ -1,17 +1,21 @@
 import { Response } from 'express';
 import { query } from '../db';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../middleware/authMiddleware';
 
-// To'lov yaratish
+/**
+ * To'lov yaratish
+ */
 export const createPayment = async (req: AuthRequest, res: Response) => {
   try {
     const { bookingId, amount, paymentMethod } = req.body;
 
-    // Booking ma'lumotlarini tekshirish
-    const bookingResult = await query('SELECT * FROM bookings WHERE booking_id = $1 AND user_id = $2', [bookingId, req.user.id]);
+    const bookingResult = await query(
+      'SELECT booking_id FROM bookings WHERE booking_id = $1 AND user_id = $2',
+      [bookingId, req.user?.id]
+    );
 
     if (bookingResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Booking topilmadi' });
+      return res.status(404).json({ message: 'Buyurtma topilmadi' });
     }
 
     const result = await query(
@@ -19,52 +23,66 @@ export const createPayment = async (req: AuthRequest, res: Response) => {
       [bookingId, amount, paymentMethod, 'unpaid']
     );
 
-    res.status(201).json({ message: 'To\'lov yaratildi', payment: result.rows[0] });
+    res.status(201).json({ message: "To'lov so'rovi yaratildi", payment: result.rows[0] });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// To'lovlarni olish (foydalanuvchi)
+/**
+ * Foydalanuvchi to'lovlari
+ */
 export const getUserPayments = async (req: AuthRequest, res: Response) => {
   try {
     const result = await query(
-      'SELECT p.* FROM payments p JOIN bookings b ON p.booking_id = b.booking_id WHERE b.user_id = $1 ORDER BY p.created_at DESC',
-      [req.user.id]
+      `SELECT p.* FROM payments p
+       JOIN bookings b ON p.booking_id = b.booking_id
+       WHERE b.user_id = $1 ORDER BY p.created_at DESC`,
+      [req.user?.id]
     );
-
     res.json(result.rows);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// To'lovni yangilash (paid qilish)
+/**
+ * To'lov holatini yangilash (Admin)
+ */
 export const updatePaymentStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { paymentId } = req.params;
     const { paymentStatus, transactionId } = req.body;
 
     const result = await query(
-      'UPDATE payments SET payment_status = $1, transaction_id = COALESCE($2, transaction_id), paid_at = CASE WHEN $1 = $3 THEN CURRENT_TIMESTAMP ELSE paid_at END WHERE payment_id = $4 RETURNING *',
-      [paymentStatus, transactionId, 'paid', paymentId]
+      `UPDATE payments SET
+        payment_status = $1, transaction_id = COALESCE($2, transaction_id),
+        paid_at = CASE WHEN $1 = 'paid' THEN CURRENT_TIMESTAMP ELSE paid_at END
+       WHERE payment_id = $3 RETURNING *`,
+      [paymentStatus, transactionId, paymentId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'To\'lov topilmadi' });
+      return res.status(404).json({ message: "To'lov topilmadi" });
     }
 
-    res.json({ message: 'To\'lov yangilandi', payment: result.rows[0] });
+    res.json({ message: "To'lov holati yangilandi", payment: result.rows[0] });
   } catch (error: any) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Barcha to\'lovlar (admin)
+/**
+ * Barcha to'lovlar (Admin)
+ */
 export const getAllPayments = async (req: AuthRequest, res: Response) => {
   try {
-    const result = await query('SELECT p.*, b.booking_id, u.fullname FROM payments p JOIN bookings b ON p.booking_id = b.booking_id JOIN users u ON b.user_id = u.user_id ORDER BY p.created_at DESC');
-
+    const result = await query(`
+      SELECT p.*, b.booking_id, u.fullname FROM payments p
+      JOIN bookings b ON p.booking_id = b.booking_id
+      JOIN users u ON b.user_id = u.user_id
+      ORDER BY p.created_at DESC
+    `);
     res.json(result.rows);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
