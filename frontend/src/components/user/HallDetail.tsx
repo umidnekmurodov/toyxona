@@ -8,7 +8,7 @@ import { formatPrice } from '../../utils/formatPrice';
 interface Singer {
   singer_id: string;
   fullname: string;
-  price: number;
+  price: number | string;
   description: string | null;
   image_url: string | null;
 }
@@ -18,7 +18,7 @@ interface Car {
   name: string;
   brand: string | null;
   model_year: number | null;
-  price: number;
+  price: number | string;
   image_url: string | null;
 }
 
@@ -26,7 +26,7 @@ interface Food {
   food_id: string;
   name: string;
   description: string | null;
-  price_per_guest: number;
+  price_per_guest: number | string;
   image_url: string | null;
 }
 
@@ -38,7 +38,7 @@ interface Hall {
   district: string;
   address: string;
   capacity: number;
-  price_per_seat: number;
+  price_per_seat: number | string;
   rating: number;
   main_image: string;
   wifi: boolean;
@@ -49,6 +49,11 @@ interface Hall {
   images: string[];
   is_favorited?: boolean;
   favorites_count?: number;
+}
+
+function toPriceNumber(value: number | string | null | undefined): number {
+  const price = Number(value);
+  return Number.isFinite(price) ? price : 0;
 }
 
 // --- Mini Calendar Component ---
@@ -212,7 +217,7 @@ function SingerCard({ singer, isSelected, onSelect }: {
         <div className="flex-1 min-w-0">
           <h4 className="font-bold text-sm text-luxury-900 dark:text-white truncate">{singer.fullname}</h4>
           <p className="text-xs text-luxury-500 dark:text-luxury-400 truncate">{singer.description || 'Professional xonanda'}</p>
-          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(singer.price)}</p>
+          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(toPriceNumber(singer.price))}</p>
         </div>
       </div>
     </div>
@@ -252,7 +257,7 @@ function CarCard({ car, isSelected, onSelect }: {
           <p className="text-xs text-luxury-500 dark:text-luxury-400">
             {car.brand} {car.model_year && `• ${car.model_year}`}
           </p>
-          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(car.price)}</p>
+          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(toPriceNumber(car.price))}</p>
         </div>
       </div>
     </div>
@@ -290,7 +295,7 @@ function FoodCard({ food, isSelected, onSelect }: {
         <div className="flex-1 min-w-0">
           <h4 className="font-bold text-sm text-luxury-900 dark:text-white truncate">{food.name}</h4>
           <p className="text-xs text-luxury-500 dark:text-luxury-400 line-clamp-2">{food.description || 'Zamonaviy taom'}</p>
-          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(food.price_per_guest)} / kishi</p>
+          <p className="text-sm font-bold text-gold-500 mt-1">{formatPrice(toPriceNumber(food.price_per_guest))} / kishi</p>
         </div>
       </div>
     </div>
@@ -465,13 +470,11 @@ export default function HallDetail() {
   const selectedSinger = singers.find(s => s.singer_id === selectedSingerId);
   const selectedCar = cars.find(c => c.car_id === selectedCarId);
   const selectedFood = foods.find(f => f.food_id === selectedFoodId);
-  const pricePerSeat = typeof hall?.price_per_seat === 'string'
-    ? parseInt(hall.price_per_seat)
-    : (hall?.price_per_seat || 0);
+  const pricePerSeat = toPriceNumber(hall?.price_per_seat);
   const hallPrice = pricePerSeat * guestCount;
-  const singerPrice = selectedSinger?.price || 0;
-  const carPrice = selectedCar?.price || 0;
-  const foodPrice = (selectedFood?.price_per_guest || 0) * guestCount;
+  const singerPrice = toPriceNumber(selectedSinger?.price);
+  const carPrice = toPriceNumber(selectedCar?.price);
+  const foodPrice = toPriceNumber(selectedFood?.price_per_guest) * guestCount;
   const totalPrice = hallPrice + singerPrice + carPrice + foodPrice;
 
   if (loading) {
