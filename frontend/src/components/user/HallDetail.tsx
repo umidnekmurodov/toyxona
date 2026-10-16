@@ -1,6 +1,6 @@
 import api from '../../utils/api';
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { translations as t } from '../../utils/translations';
 import { ToastContainer, useToast } from '../Toast';
 import { formatPrice } from '../../utils/formatPrice';
@@ -300,6 +300,7 @@ function FoodCard({ food, isSelected, onSelect }: {
 // --- Main HallDetail Component ---
 export default function HallDetail() {
   const { hallId } = useParams<{ hallId: string }>();
+  const navigate = useNavigate();
   const [hall, setHall] = useState<Hall | null>(null);
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -451,7 +452,7 @@ export default function HallDetail() {
           foodName: selectedFood?.name ?? null,
         };
         localStorage.setItem('bookingInfo', JSON.stringify(bookingInfo));
-        window.location.href = '/taklifnoma';
+        navigate('/taklifnoma');
       }
     } catch (error: any) {
       addToast('Booking yaratishda xato: ' + (error.response?.data?.message || error.message), 'error');
@@ -460,23 +461,18 @@ export default function HallDetail() {
     }
   };
 
-  // Price calculation with useMemo
-  const selectedSinger = useMemo(() => singers.find(s => s.singer_id === selectedSingerId), [singers, selectedSingerId]);
-  const selectedCar = useMemo(() => cars.find(c => c.car_id === selectedCarId), [cars, selectedCarId]);
-  const selectedFood = useMemo(() => foods.find(f => f.food_id === selectedFoodId), [foods, selectedFoodId]);
-
-  const hallPrice = useMemo(() => {
-    const pricePerSeat = typeof hall?.price_per_seat === 'string' ? parseInt(hall?.price_per_seat) : (hall?.price_per_seat || 0);
-    return pricePerSeat * guestCount;
-  }, [hall, guestCount]);
-
-  const singerPrice = useMemo(() => selectedSinger?.price || 0, [selectedSinger]);
-  const carPrice = useMemo(() => selectedCar?.price || 0, [selectedCar]);
-  const foodPrice = useMemo(() => (selectedFood?.price_per_guest || 0) * guestCount, [selectedFood, guestCount]);
-
-  const totalPrice = useMemo(() => {
-    return hallPrice + singerPrice + carPrice + foodPrice;
-  }, [hallPrice, singerPrice, carPrice, foodPrice]);
+  // Derived selections and prices are inexpensive to calculate on each render.
+  const selectedSinger = singers.find(s => s.singer_id === selectedSingerId);
+  const selectedCar = cars.find(c => c.car_id === selectedCarId);
+  const selectedFood = foods.find(f => f.food_id === selectedFoodId);
+  const pricePerSeat = typeof hall?.price_per_seat === 'string'
+    ? parseInt(hall.price_per_seat)
+    : (hall?.price_per_seat || 0);
+  const hallPrice = pricePerSeat * guestCount;
+  const singerPrice = selectedSinger?.price || 0;
+  const carPrice = selectedCar?.price || 0;
+  const foodPrice = (selectedFood?.price_per_guest || 0) * guestCount;
+  const totalPrice = hallPrice + singerPrice + carPrice + foodPrice;
 
   if (loading) {
     return (
@@ -496,8 +492,6 @@ export default function HallDetail() {
       </div>
     );
   }
-
-  const pricePerSeat = typeof hall.price_per_seat === 'string' ? parseInt(hall.price_per_seat) : hall.price_per_seat;
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';

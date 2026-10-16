@@ -21,8 +21,13 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
   try {
     const { hallId, bookingDate, guestCount, note, singerId, carId, foodId } = req.body;
 
-    if (!hallId || !bookingDate || !guestCount) {
+    if (!hallId || !bookingDate || guestCount === undefined || guestCount === null) {
       return res.status(400).json({ message: "Barcha maydonlarni to'ldiring: to'yxona, sana, mehmonlar soni" });
+    }
+
+    const parsedGuestCount = Number(guestCount);
+    if (!Number.isInteger(parsedGuestCount) || parsedGuestCount < 1) {
+      return res.status(400).json({ message: "Mehmonlar soni musbat butun son bo'lishi kerak" });
     }
 
     if (isNaN(Date.parse(bookingDate))) {
@@ -42,7 +47,7 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
     }
 
     const hall = hallResult.rows[0];
-    if (guestCount > hall.capacity) {
+    if (parsedGuestCount > hall.capacity) {
       return res.status(400).json({ message: `Mehmonlar soni to'yxona sig'imidan (${hall.capacity} kishi) oshib ketmasligi kerak!` });
     }
 
@@ -60,27 +65,36 @@ export const createBooking = async (req: AuthRequest, res: Response) => {
 
     if (singerId) {
       const singerRes = await query('SELECT price FROM singers WHERE singer_id = $1 AND is_active = TRUE', [singerId]);
-      if (singerRes.rows.length > 0) singerPrice = parseFloat(singerRes.rows[0].price);
+      if (singerRes.rows.length === 0) {
+        return res.status(400).json({ message: "Tanlangan san'atkor topilmadi yoki faol emas" });
+      }
+      singerPrice = parseFloat(singerRes.rows[0].price);
     }
 
     if (carId) {
       const carRes = await query('SELECT price FROM cars WHERE car_id = $1 AND is_active = TRUE', [carId]);
-      if (carRes.rows.length > 0) carPrice = parseFloat(carRes.rows[0].price);
+      if (carRes.rows.length === 0) {
+        return res.status(400).json({ message: 'Tanlangan avtomobil topilmadi yoki faol emas' });
+      }
+      carPrice = parseFloat(carRes.rows[0].price);
     }
 
     if (foodId) {
       const foodRes = await query('SELECT price_per_guest FROM foods WHERE food_id = $1 AND is_active = TRUE', [foodId]);
-      if (foodRes.rows.length > 0) foodPricePerGuest = parseFloat(foodRes.rows[0].price_per_guest);
+      if (foodRes.rows.length === 0) {
+        return res.status(400).json({ message: 'Tanlangan taom menyusi topilmadi yoki faol emas' });
+      }
+      foodPricePerGuest = parseFloat(foodRes.rows[0].price_per_guest);
     }
 
-    const hallPrice = parseFloat(hall.price_per_seat) * guestCount;
-    const totalPrice = hallPrice + singerPrice + carPrice + (foodPricePerGuest * guestCount);
+    const hallPrice = parseFloat(hall.price_per_seat) * parsedGuestCount;
+    const totalPrice = hallPrice + singerPrice + carPrice + (foodPricePerGuest * parsedGuestCount);
 
     const result = await query(
       `INSERT INTO bookings (user_id, hall_id, booking_date, guest_count, total_price, note, singer_id, car_id, food_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING booking_id, user_id, hall_id, booking_date::text, guest_count, total_price, status, note, singer_id, car_id, food_id, created_at`,
-      [req.user?.id, hallId, bookingDateStr, guestCount, totalPrice, note || null, singerId || null, carId || null, foodId || null]
+      [req.user?.id, hallId, bookingDateStr, parsedGuestCount, totalPrice, note || null, singerId || null, carId || null, foodId || null]
     );
 
     res.status(201).json({ message: 'Bron muvaffaqiyatli yaratildi!', booking: result.rows[0] });
@@ -118,6 +132,11 @@ export const getBookingById = async (req: AuthRequest, res: Response) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Bron topilmadi' });
     }
+
+    if (req.user?.role !== 'admin' && result.rows[0].user_id !== req.user?.id) {
+      return res.status(403).json({ message: "Sizda ushbu bron ma'lumotlarini ko'rish huquqi yo'q" });
+    }
+
     res.json(result.rows[0]);
   } catch (error: any) {
     res.status(500).json({ message: error.message });
@@ -131,6 +150,10 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response) => {
   try {
     const { bookingId } = req.params;
     const { status } = req.body;
+
+    if (!['pending', 'confirmed', 'cancelled', 'completed'].includes(status)) {
+      return res.status(400).json({ message: "Bron holati noto'g'ri" });
+    }
 
     if (req.user?.role === 'owner') {
       const ownerId = await getOwnerIdByUserId(req.user.id);

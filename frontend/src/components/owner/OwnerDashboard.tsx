@@ -184,7 +184,6 @@ export default function OwnerDashboard() {
       return;
     }
     loadData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const handleAddHall = async () => {
@@ -609,7 +608,7 @@ export default function OwnerDashboard() {
                             {requestData.amenities && (
                               <div className="flex flex-wrap gap-1.5 mt-3">
                                 {Object.entries(requestData.amenities)
-                                  .filter(([_, val]) => val)
+                                  .filter(([, value]) => value)
                                   .map(([key]) => (
                                     <span key={key} className="text-[10px] bg-luxury-100 dark:bg-luxury-800 text-luxury-600 dark:text-luxury-300 px-2 py-0.5 rounded border border-luxury-200/50 dark:border-luxury-800/50 font-semibold uppercase">
                                       {key === 'wifi' ? '📡 WiFi' :

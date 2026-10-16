@@ -299,3 +299,46 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- =========================================================
+-- BRON UCHUN QO'SHIMCHA XIZMATLAR
+-- =========================================================
+
+CREATE TABLE IF NOT EXISTS singers (
+    singer_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fullname VARCHAR(200) NOT NULL,
+    price NUMERIC(12,2) NOT NULL CHECK (price > 0),
+    image_url TEXT,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cars (
+    car_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(200) NOT NULL,
+    price NUMERIC(12,2) NOT NULL CHECK (price > 0),
+    brand VARCHAR(100),
+    model_year INTEGER,
+    image_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS foods (
+    food_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    price_per_guest NUMERIC(12,2) NOT NULL CHECK (price_per_guest > 0),
+    image_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE bookings
+    ADD COLUMN IF NOT EXISTS singer_id UUID REFERENCES singers(singer_id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS car_id UUID REFERENCES cars(car_id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS food_id UUID REFERENCES foods(food_id) ON DELETE SET NULL;
+
