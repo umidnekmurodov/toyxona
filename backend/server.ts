@@ -59,36 +59,42 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// ─── 4. API Yo'llari (Har bir modul o'z manzilida) ─────────────────────────────
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/halls', hallRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/reviews', reviewRoutes);
-app.use('/api/favorites', favoriteRoutes);
-app.use('/api/cars', carsRoutes);
-app.use('/api/foods', foodsRoutes);
-app.use('/api/singers', singersRoutes);
+// ─── 4. API Yo'llari (Ham /api prefiksi bilan, ham prefikssiz qabul qiladi) ───
+const routeModules = [
+  ['users', userRoutes],
+  ['admin', adminRoutes],
+  ['halls', hallRoutes],
+  ['bookings', bookingRoutes],
+  ['payments', paymentRoutes],
+  ['reviews', reviewRoutes],
+  ['favorites', favoriteRoutes],
+  ['cars', carsRoutes],
+  ['foods', foodsRoutes],
+  ['singers', singersRoutes],
+] as const;
+
+for (const [path, router] of routeModules) {
+  app.use(`/api/${path}`, router);
+  app.use(`/${path}`, router);
+}
 
 // Server holatini tekshirish
-app.get('/api/health', (_req: Request, res: Response) => {
+app.get(['/api/health', '/health'], (_req: Request, res: Response) => {
   res.json({ status: 'UP', message: 'Server faol ishlamoqda ✅', timestamp: new Date().toISOString() });
 });
 
 // Bosh sahifa
-app.get('/api', (_req: Request, res: Response) => {
+app.get(['/api', '/'], (_req: Request, res: Response) => {
   res.json({ message: "To'yxona Online Band Qilish Tizimi API xizmati" });
 });
 
 // ─── 5. Global Xatoliklarni Tutuvchi Middleware ───────────────────────────────
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('❌ Server xatosi:', err.message || err);
-  const isDev = process.env.NODE_ENV === 'development';
 
   res.status(err.status || 500).json({
     message: err.message || 'Serverda ichki xatolik yuz berdi',
-    ...(isDev && { stack: err.stack }),
+    error: String(err.message || err),
   });
 });
 

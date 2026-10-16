@@ -10,12 +10,8 @@ export interface AuthRequest extends Request {
   };
 }
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'toyxona_jwt_secret_key_default_123456';
 
-if (!JWT_SECRET) {
-  console.error("❌ FATAL: JWT_SECRET .env faylida yo'q!");
-  process.exit(1);
-}
 
 /**
  * Tokenni tekshiruvchi middleware
