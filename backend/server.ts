@@ -37,7 +37,9 @@ app.use((req, res, next) => cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const requestOrigin = `${req.protocol}://${req.get('host')}`;
-      if (origin === requestOrigin || allowedOrigins.has(origin)) return callback(null, true);
+      if (origin === requestOrigin || allowedOrigins.has(origin) || origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
       return callback(null, false);
     },
     credentials: true,
